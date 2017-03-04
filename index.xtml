@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<!-- saved from url=(0033)http://grabthesquare.appspot.com/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+		<script>
+			var controllers = ['keyboard', 'numpad', 'mouse', 'computer'];
+			var sizeX = 20;
+			var sizeY = 40;
+			var map = new Array(sizeX+2);
+			for (var x = -1; x < sizeX+2; x++) {
+				map[x] = new Array(sizeY+2);
+			}
+			var actPlayer = null;
+			var startPlayer = null;
+			var step = 0, stepLoopSize = 120;
+			// Move direction of active player
+			var playerMoveDir = 0; // 0 - nothing, 1-5: _ \ | / _
+									//             6-8    / | \
+			
+			function Player(){
+				this.score = 0;
+				this.strokeStyle = "rgba(255,127,0,1.0)";
+				this.fillStyle = this.strokeStyle;
+				this.controlledBy = controllers[0];
+				this.path = [];
+				this.pathStart = null;
+				this.playerNumber = 1;
+			}
+			
+			function Pos(pos0){
+				this.x = 0;
+				this.y = 0;
+				if(pos0){
+					this.x = pos0.x;
+					this.y = pos0.y;
+				}
+			}
+			
+			var p1 = new Player();
+			p1.strokeStyle = "rgba(0,127,255,1.0)";
+			p1.fillStyle = p1.strokeStyle;
+			var p2 = new Player();
+			p2.controlledBy = controllers[1];
+			p2.playerNumber = 2;
+			var pos = new Pos();
+			var playerTab = [null, p1, p2];
+				
+			function Node(){
+				this.edges = [0, 0, 0, 0]; // _ \ | /  :edges: west, north-west, north, north-east
+				this.node = false; // has any touching eadges
+				this.markedBy = null;
+			}
+
+			function nextGame(){ // starts a new round
+				pos.x = sizeX/2;
+				pos.y = sizeY/2;
+				for (var x = -1; x < sizeX+2; x++) {
+					for (var y = 0; y < sizeY+2; y++) {
+						map[x][y] = new Node();
+					}
+				}
+				map[pos.x][pos.y].node = true; // starting node is occupied
+				if(startPlayer && startPlayer === p1){
+					startPlayer = p2;
+				} else {
+					startPlayer = p1;
+				}
+				actPlayer = startPlayer;
+				actPlayer.pathStart = new Pos(pos);
+				map[pos.x][pos.y].markedBy = actPlayer;
+				
+				// define map edge barier
+				for (var x = -1; x < sizeX+1; x++) {
+					for (var e = 0; e < 4; e++) {
+						map[x][0].edges[e] = 2;
+						map[x][sizeY+1].edges[e] = 2;
+					}
+					map[x][sizeY].edges[0] = 2;
+				}
+				for (var y = 0; y < map[0].length; y++) {
+					map[-1][y].edges[3] = 2;
+					for (var e = 0; e < 3; e++) {
+						map[0][y].edges[e] = 2;
+					}
+					for (var e = 2; e < 4; e++) {
+						map[sizeX][y].edges[e] = 2;
+					}
+					for (var e = 0; e < 2; e++) {
+						map[sizeX+1][y].edges[e] = 2;
+					}
+				}
+				
+				
+				//for (var x = 5; x < 9; x++) { //TODO: remove
+				//	for (var y = 10; y < 24; y++) {
+				//		for (var e = 0; e < 4; e++) {
+				//			map[x][y].edges[e] = (x+y/2)%4>1?2:0;
+				//		}
+				//	}
+				//}
+			}
+
+			
+			
+			function xToGreed(x){
+				return x*(can.width-2)/sizeX+1;
+			}
+			function yToGreed(y){
+				return y*(can.height-2)/sizeY+1;
+			}
+			
+			function drawMapLine(ctx, x0, y0, x1, y1, player){
+				ctx.strokeStyle = player.strokeStyle;
+				ctx.beginPath();
+				ctx.moveTo(xToGreed(x0), yToGreed(y0));
+				ctx.lineTo(xToGreed(x1), yToGreed(y1));
+				ctx.stroke();
+			}
+			
+			function markPath(p, path, mark){
+				for(var i=0;i<path.length; i++){ 
+					var pathMove = path[i];
+					if(pathMove == 1) { map[p.x  ][p.y  ].edges[0]=mark; p.x--;        }
+					if(pathMove == 2) { map[p.x  ][p.y  ].edges[1]=mark; p.x--; p.y--; }
+					if(pathMove == 3) { map[p.x  ][p.y  ].edges[2]=mark;        p.y--; }
+					if(pathMove == 4) { map[p.x  ][p.y  ].edges[3]=mark; p.x++; p.y--; }
+					if(pathMove == 5) { map[p.x+1][p.y  ].edges[0]=mark; p.x++;        } 
+					if(pathMove == 6) { map[p.x+1][p.y+1].edges[1]=mark; p.x++; p.y++; }
+					if(pathMove == 7) { map[p.x  ][p.y+1].edges[2]=mark;        p.y++; }
+					if(pathMove == 8) { map[p.x-1][p.y+1].edges[3]=mark; p.x--; p.y++; }
+				}
+				return p;
+			}
+				
+			function calcMoveProperties(pos0, path, move){ // returns {isPossibleMove, endPos}
+				if(move>0 && move<9){
+					var legal = false;
+					var p = new Pos(pos0);
+					markPath(p, path, -1); // marking path on map
+					
+					if(move == 1) { legal = map[p.x  ][p.y  ].edges[0]==0; }
+					if(move == 2) { legal = map[p.x  ][p.y  ].edges[1]==0; }
+					if(move == 3) { legal = map[p.x  ][p.y  ].edges[2]==0; }
+					if(move == 4) { legal = map[p.x  ][p.y  ].edges[3]==0; }
+					if(move == 5) { legal = map[p.x+1][p.y  ].edges[0]==0; }
+					if(move == 6) { legal = map[p.x+1][p.y+1].edges[1]==0; }
+					if(move == 7) { legal = map[p.x  ][p.y+1].edges[2]==0; }
+					if(move == 8) { legal = map[p.x-1][p.y+1].edges[3]==0; }
+					
+					if(legal) path.push(move);
+					var endPos = markPath(new Pos(pos0), path, 0); // cleaning path marks from map and endPos calc
+					if(legal) path.pop();
+
+					return {isPossibleMove: legal, endPos: endPos}; // true if map is free of markings
+				}
+				return {isPossibleMove: false};
+			}
+			
+			function go(evt){
+			
+				var p1s = document.getElementById("p1s");
+				var p2s = document.getElementById("p2s");
+				var can = document.getElementById("can");
+				var ctx = can.getContext("2d");
+				var rect = can.getBoundingClientRect();
+				can.width = can.width;
+				step = (step+1)%stepLoopSize;//((new Date()).getTime()/50)%stepLoopSize;
+				
+				//background
+				var grd=ctx.createLinearGradient(0,0,can.width,can.height);
+				grd.addColorStop(0,"#8f8");
+				//grd.addColorStop(0.2,"#4e4");
+				grd.addColorStop(0.30,"#5b5");
+				grd.addColorStop(0.50,"#55aa48");
+				grd.addColorStop(0.70,"#5b5");
+				grd.addColorStop(1,"#8f8");
+				ctx.fillStyle=grd;
+				ctx.fillRect(0,0,can.width,can.height);
+				
+				//circles
+				ctx.fillStyle = "rgba(0,127,0,0.15)";
+				ctx.lineWidth = 2;
+				ctx.strokeStyle = "rgba(0,127,0,0.3)";
+				
+				ctx.beginPath();
+				ctx.arc(can.width/2, can.height/2, can.width/4, 0, 2 * Math.PI, false);
+				ctx.fill();
+				ctx.stroke();
+				
+				ctx.beginPath();
+				ctx.arc(can.width/2, can.height/2, 4, 0, 2 * Math.PI, false);
+				ctx.fill();
+				ctx.stroke();
+				
+				ctx.beginPath();
+				ctx.moveTo(can.width/4, 0);
+				ctx.quadraticCurveTo(can.width/4,   can.width/4, can.width/2,   can.width/4);
+				ctx.quadraticCurveTo(can.width/4*3, can.width/4, can.width/4*3, 0);
+				ctx.fill();
+				ctx.stroke();
+				
+				ctx.beginPath();
+				ctx.moveTo(can.width/4, can.height);
+				ctx.quadraticCurveTo(can.width/4,   can.height-can.width/4, can.width/2,   can.height-can.width/4);
+				ctx.quadraticCurveTo(can.width/4*3, can.height-can.width/4, can.width/4*3, can.height);
+				ctx.fill();
+				ctx.stroke();
+
+				ctx.lineWidth = 3;
+				ctx.beginPath();
+				ctx.moveTo(0, can.height/2);
+				ctx.lineTo(can.width, can.height/2);
+				ctx.stroke();
+				
+				// gates
+				ctx.fillStyle= "rgba(255,127,0,1)";
+				ctx.fillRect(xToGreed(sizeX/2-1)-4, 0, xToGreed(2)+6, yToGreed(1)+3);
+				ctx.fillStyle= "rgba(0,127,255,1)";
+				ctx.fillRect(xToGreed(sizeX/2-1)-4, yToGreed(sizeY-1)-3, xToGreed(2)+6, yToGreed(1)+3);
+
+				//greed
+				ctx.strokeStyle = "rgba(0,127,0,0.3)";
+				ctx.lineWidth = 2;
+				for(var y=0; y<=sizeY; y++){
+					ctx.beginPath();
+					ctx.moveTo(0,         yToGreed(y));
+					ctx.lineTo(can.width, yToGreed(y));
+					ctx.stroke();
+				}
+				
+				for(var x=0; x<=sizeX; x++){
+					ctx.beginPath();
+					ctx.moveTo(xToGreed(x), 0);
+					ctx.lineTo(xToGreed(x), can.height);
+					ctx.stroke();
+				}
+				
+				//player traces
+				ctx.lineCap="round";
+				for(var x=0; x<=sizeX; x++){
+					for(var y=1; y<=sizeY; y++){
+						var edges = map[x][y].edges;
+						if(edges[1] > 0 && x>0){
+							ctx.lineWidth = 2;
+							drawMapLine(ctx, x-1, y-1, x, y, playerTab[edges[1]]);
+						}
+						if(edges[3] > 0 && x<sizeX){
+							ctx.lineWidth = 2;
+							drawMapLine(ctx, x+1, y-1, x, y, playerTab[edges[3]]);
+						}
+						if(edges[2] > 0 && x>0 && x<sizeX){
+							ctx.lineWidth = 3;
+							drawMapLine(ctx, x, y-1, x, y, playerTab[edges[2]]);
+						}
+						if(edges[0] > 0 && y<sizeY&& x>0){
+							ctx.lineWidth = 3;
+							drawMapLine(ctx, x-1, y, x, y, playerTab[edges[0]]);
+						}
+					}
+				}
+				for(var x=0; x<=sizeX; x++){
+					for(var y=1; y<=sizeY; y++){
+						if(map[x][y].node){
+							ctx.fillStyle = map[x][y].markedBy.fillStyle;
+							ctx.beginPath();
+							ctx.arc(xToGreed(x), yToGreed(y), 2, 0, 2 * Math.PI, false);
+							ctx.fill();
+						}
+					}
+				}
+				
+				//human player move
+				if(actPlayer.controlledBy == controllers[0] 
+						|| actPlayer.controlledBy == controllers[1] || actPlayer.controlledBy == controllers[2]){
+					pos = new Pos(actPlayer.pathStart);
+					var moveProps = null;
+
+					if(playerMoveDir!=0){ // human player tries to move
+						
+						moveProps = calcMoveProperties(new Pos(pos), actPlayer.path, playerMoveDir);
+						if(moveProps.isPossibleMove){
+							actPlayer.path.push(playerMoveDir); // move successful
+						}
+						
+						if(playerMoveDir == -1){ // undo move
+							actPlayer.path.pop();
+						}
+						
+						playerMoveDir = 0;
+					}
+
+					for(var i=0;i<actPlayer.path.length; i++){
+						var pos0 = new Pos(pos);
+						var move = actPlayer.path[i];
+						if(move == 1) { pos.x--; }
+						if(move == 2) { pos.x--; pos.y--;}
+						if(move == 3) {          pos.y--;}
+						if(move == 4) { pos.x++; pos.y--;}
+						if(move == 5) { pos.x++; } 
+						if(move == 6) { pos.x++; pos.y++;}
+						if(move == 7) {          pos.y++;}
+						if(move == 8) { pos.x--; pos.y++;}
+						
+						if( i%12!=step%12 && (i+1)%12!=step%12 ){ // move trace animation
+							drawMapLine(ctx, pos0.x, pos0.y, pos.x, pos.y, actPlayer);
+						}
+					}
+					
+					if(moveProps && moveProps.isPossibleMove){
+						if(!map[pos.x][pos.y].node){
+							map[pos.x][pos.y].node = true;
+							map[pos.x][pos.y].markedBy = actPlayer;
+							markPath(actPlayer.pathStart, actPlayer.path, actPlayer.playerNumber);
+							
+							actPlayer.path = [];
+							actPlayer = playerTab[actPlayer.playerNumber%2+1];
+							actPlayer.path = [];
+							actPlayer.pathStart = new Pos(pos);
+							
+						}
+					}
+				}	
+				
+				//cursor
+				if((step-actPlayer.path.length)%12<11){
+					ctx.fillStyle = actPlayer.fillStyle;
+					ctx.beginPath();
+					ctx.arc(xToGreed(pos.x), yToGreed(pos.y), (Math.abs(111000+step-actPlayer.path.length))%12/2+1, 0, 2 * Math.PI, false);
+					ctx.fill();
+				}
+				
+			}
+			
+			
+			function kup(event) {
+				consumeEvent(event);
+				var keyCode = ('which' in event) ? event.which : event.keyCode;
+					// 0 - nothing, 1-5: _ \ | / _
+					//              6-8    / | \
+				playerMoveDir = 0;
+					
+				if(actPlayer.controlledBy == controllers[0]){		
+					if(keyCode == 65 || keyCode == 97) playerMoveDir = 1; // A 
+					if(keyCode == 81 || keyCode ==113) playerMoveDir = 2; // Q 
+					if(keyCode == 87 || keyCode ==119) playerMoveDir = 3; // W 
+					if(keyCode == 69 || keyCode ==101) playerMoveDir = 4; // E 
+					if(keyCode == 68 || keyCode ==100) playerMoveDir = 5; // D 
+					if(keyCode == 67 || keyCode == 99) playerMoveDir = 6; // C 
+					if(keyCode == 88 || keyCode ==122) playerMoveDir = 7; // X 
+					if(keyCode == 90 || keyCode ==120) playerMoveDir = 8; // Z 
+					if(keyCode == 8 || keyCode == 82) playerMoveDir = -1; // backspace
+				}
+				if(actPlayer.controlledBy == controllers[1]){	
+					if(keyCode == 37) playerMoveDir = 1; // NumPad_4 
+					if(keyCode == 36) playerMoveDir = 2; // NumPad_7
+					if(keyCode == 38) playerMoveDir = 3; // NumPad_8
+					if(keyCode == 33) playerMoveDir = 4; // NumPad_9
+					if(keyCode == 39) playerMoveDir = 5; // NumPad_6
+					if(keyCode == 34) playerMoveDir = 6; // NumPad_3
+					if(keyCode == 40) playerMoveDir = 7; // NumPad_2
+					if(keyCode == 35) playerMoveDir = 8; // NumPad_1
+					if(keyCode == 109) playerMoveDir = -1; // backspace
+				}
+				console.log(keyCode);
+			}
+			
+			function consumeEvent(event){
+				if (typeof event.stopPropagation != "undefined") {
+					event.stopPropagation();
+				} else {
+					event.cancelBubble = true;
+				}
+			}
+			
+		</script>
+	</head>
+
+
+	<body onkeyup="kup(event)">
+		
+		<table><tbody><tr><td>
+		<table><tbody><tr><td>
+		
+			<table width="20" height="600" border="5">
+				<tbody><tr style="color:#484; background-color:#8f8">
+					<td align="center"> 
+						<font size="5"><b><div id="title">
+							<table>
+								<tbody><tr><td align="center"> </td></tr>
+								<tr height="35"><td align="center">P</td></tr>
+								<tr height="35"><td align="center">a</td></tr>
+								<tr height="35"><td align="center">p</td></tr>
+								<tr height="35"><td align="center">e</td></tr>
+								<tr height="35"><td align="center">r</td></tr>
+								<tr height="35"><td align="center"> </td></tr>
+								<tr height="35"><td align="center">S</td></tr>
+								<tr height="35"><td align="center">o</td></tr>
+								<tr height="35"><td align="center">c</td></tr>
+								<tr height="35"><td align="center">c</td></tr>
+								<tr height="35"><td align="center">e</td></tr>
+								<tr height="35"><td align="center">r</td></tr>
+							</tbody></table>
+						</div>
+					</b></font></td>
+				</tr>
+			</tbody></table>
+		
+		</td><td>
+		
+			<canvas id="can" width="300" height="600" style="border:1 solid #000000"></canvas>
+		
+		</td><td>
+		
+			<table height="600" border="5">
+				<tbody><tr>
+					<td align="center" height="50%" style="color:#840; background-color:#f80"> 
+						<font size="20"><b><div id="p1s">0</div>
+					</b></font></td></tr><tr>
+					<td align="center" height="50%" style="color:#048; background-color:#08f"> 
+						<font size="20"><b><div id="p2s">0</div>
+					</b></font></td>
+				</tr>
+			</tbody></table>
+		
+		</td></tr></tbody></table>
+		</td></tr>
+		</tbody></table>
+	
+
+	<script>
+		
+		window.setInterval("go();",50);
+		var can = document.getElementById('can');
+		nextGame();
+		
+	</script>
+
+
+</body></html>
