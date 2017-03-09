@@ -18,7 +18,7 @@
 			
 			function Player(){
 				this.score = 0;
-				this.strokeStyle = "rgba(255,127,0,1.0)";
+				this.strokeStyle = "rgba(0,127,255,1.0)";
 				this.fillStyle = this.strokeStyle;
 				this.controlledBy = controllers[0];
 				this.path = [];
@@ -36,13 +36,13 @@
 			}
 			
 			var p1 = new Player();
-			p1.strokeStyle = "rgba(0,127,255,1.0)";
+			p1.strokeStyle = "rgba(255,127,0,1.0)";
 			p1.fillStyle = p1.strokeStyle;
 			var p2 = new Player();
-			p2.controlledBy = controllers[1];
 			p2.playerNumber = 2;
 			var pos = new Pos();
 			var playerTab = [null, p1, p2];
+			var mousePos = null;
 				
 			function Node(){
 				this.edges = [0, 0, 0, 0]; // _ \ | /  :edges: west, north-west, north, north-east
@@ -51,6 +51,14 @@
 			}
 
 			function nextGame(){ // starts a new round
+				document.getElementById('p1s').innerHTML = p1.score;
+				document.getElementById('p2s').innerHTML = p2.score;
+				p1.path = [];
+				p1.pathStart = null;
+				p2.path = [];
+				p2.pathStart = null;
+				playerMoveDir = 0;
+			
 				pos.x = sizeX/2;
 				pos.y = sizeY/2;
 				for (var x = -1; x < sizeX+2; x++) {
@@ -75,6 +83,8 @@
 						map[x][sizeY+1].edges[e] = 2;
 					}
 					map[x][sizeY].edges[0] = 2;
+					map[x][0].node = true;
+					map[x][sizeY].node = true;
 				}
 				for (var y = 0; y < map[0].length; y++) {
 					map[-1][y].edges[3] = 2;
@@ -87,6 +97,8 @@
 					for (var e = 0; e < 2; e++) {
 						map[sizeX+1][y].edges[e] = 2;
 					}
+					map[0][y].node = true;
+					map[sizeX][y].node = true;
 				}
 				
 				
@@ -157,8 +169,18 @@
 			
 			function go(evt){
 			
-				var p1s = document.getElementById("p1s");
-				var p2s = document.getElementById("p2s");
+				//check score
+				if(pos.x>=sizeX/2-1 && pos.y>=0 && pos.x<=sizeX/2+1 && pos.y<=1){
+					p2.score++;
+					nextGame();
+					return;
+				}
+				if(pos.x>=sizeX/2-1 && pos.y>=sizeY-1 && pos.x<=sizeX/2+1 && pos.y<=sizeY){
+					p1.score++;
+					nextGame();
+					return;
+				}
+				
 				var can = document.getElementById("can");
 				var ctx = can.getContext("2d");
 				var rect = can.getBoundingClientRect();
@@ -169,9 +191,9 @@
 				var grd=ctx.createLinearGradient(0,0,can.width,can.height);
 				grd.addColorStop(0,"#8f8");
 				//grd.addColorStop(0.2,"#4e4");
-				grd.addColorStop(0.30,"#5b5");
-				grd.addColorStop(0.50,"#55aa48");
-				grd.addColorStop(0.70,"#5b5");
+				grd.addColorStop(0.30,"#5c5");
+				grd.addColorStop(0.50,"#55af48");
+				grd.addColorStop(0.70,"#5c5");
 				grd.addColorStop(1,"#8f8");
 				ctx.fillStyle=grd;
 				ctx.fillRect(0,0,can.width,can.height);
@@ -259,7 +281,7 @@
 				}
 				for(var x=0; x<=sizeX; x++){
 					for(var y=1; y<=sizeY; y++){
-						if(map[x][y].node){
+						if(map[x][y].node && map[x][y].markedBy){
 							ctx.fillStyle = map[x][y].markedBy.fillStyle;
 							ctx.beginPath();
 							ctx.arc(xToGreed(x), yToGreed(y), 2, 0, 2 * Math.PI, false);
@@ -270,7 +292,8 @@
 				
 				//human player move
 				if(actPlayer.controlledBy == controllers[0] 
-						|| actPlayer.controlledBy == controllers[1] || actPlayer.controlledBy == controllers[2]){
+						|| actPlayer.controlledBy == controllers[1] 
+						|| actPlayer.controlledBy == controllers[2]){
 					pos = new Pos(actPlayer.pathStart);
 					var moveProps = null;
 
@@ -306,7 +329,7 @@
 					}
 					
 					if(moveProps && moveProps.isPossibleMove){
-						if(!map[pos.x][pos.y].node){
+						if(!map[pos.x][pos.y].node){ // end of turn
 							map[pos.x][pos.y].node = true;
 							map[pos.x][pos.y].markedBy = actPlayer;
 							markPath(actPlayer.pathStart, actPlayer.path, actPlayer.playerNumber);
@@ -326,6 +349,26 @@
 					ctx.beginPath();
 					ctx.arc(xToGreed(pos.x), yToGreed(pos.y), (Math.abs(111000+step-actPlayer.path.length))%12/2+1, 0, 2 * Math.PI, false);
 					ctx.fill();
+				}
+				
+				//mouse
+				if(mousePos){
+					if(actPlayer.controlledBy == controllers[2]){
+						ctx.fillStyle = actPlayer.fillStyle.replace(/[^,]+(?=\))/, '0.4');
+						ctx.strokeStyle = actPlayer.strokeStyle.replace(/[^,]+(?=\))/, '0.6');
+						var x = mousePos.x - xToGreed(pos.x);
+						var y = mousePos.y - yToGreed(pos.y);
+						var spread = 0.1 * Math.PI;
+						var angle = (Math.PI/2-Math.atan2(x, y))*4/Math.PI;
+						angle = Math.round(angle);
+						angle = angle * Math.PI / 4;
+						ctx.beginPath();
+						ctx.moveTo(xToGreed(pos.x), yToGreed(pos.y))
+						ctx.arc(xToGreed(pos.x), yToGreed(pos.y), 100,   angle-spread, angle+spread, false);
+						//ctx.lineTo(xToGreed(pos.x), yToGreed(pos.y))
+						ctx.fill();
+					}
+					//mousePos = null;
 				}
 				
 			}
@@ -360,7 +403,32 @@
 					if(keyCode == 35) playerMoveDir = 8; // NumPad_1
 					if(keyCode == 109) playerMoveDir = -1; // backspace
 				}
-				console.log(keyCode);
+				
+			}
+			
+			function mouseUp(event) {
+				consumeEvent(event);
+				if(actPlayer.controlledBy == controllers[2] && event.button==0){
+					var x = mousePos.x - xToGreed(pos.x);
+					var y = mousePos.y - yToGreed(pos.y);
+					var angle = (Math.PI/2-Math.atan2(x, y))*4/Math.PI;
+					angle = (Math.round(angle)+8-4)%8+1;
+					playerMoveDir = angle;
+				}
+				if(actPlayer.controlledBy == controllers[2] && event.button==1){
+					playerMoveDir = -1; // back
+				}
+			}
+			
+			function mouseMove(event){
+				consumeEvent(event);
+				mousePos = new Pos();
+				mousePos.x = event.offsetX;
+				mousePos.y = event.offsetY;
+			}
+			
+			function mouseOut(){
+				mousePos = null;
 			}
 			
 			function consumeEvent(event){
@@ -370,12 +438,33 @@
 					event.cancelBubble = true;
 				}
 			}
+			function playerCtrlChange(){
+				var p1ctrl = document.getElementById("p1ctrlSelect").value;
+				var p2ctrl = document.getElementById("p2ctrlSelect").value;
+				p1.controlledBy = controllers[p1ctrl];
+				p2.controlledBy = controllers[p2ctrl];
+				document.getElementById("p1ctrlSelect").blur();
+				document.getElementById("p2ctrlSelect").blur();
+				
+				// showing and hiding of instructions
+				document.getElementById("instr_1_0").style.display = "none";
+				document.getElementById("instr_1_1").style.display = "none";
+				document.getElementById("instr_1_2").style.display = "none";
+				document.getElementById("instr_1_3").style.display = "none";
+				document.getElementById("instr_1_"+p1ctrl).style.display = "block";
+				
+				document.getElementById("instr_2_0").style.display = "none";
+				document.getElementById("instr_2_1").style.display = "none";
+				document.getElementById("instr_2_2").style.display = "none";
+				document.getElementById("instr_2_3").style.display = "none";
+				document.getElementById("instr_2_"+p2ctrl).style.display = "block";
+			}
 			
 		</script>
 	</head>
 
 
-	<body onkeyup="kup(event)">
+	<body id="body" onkeyup="kup(event)" style="background-color: #efe;">
 		
 		<table><tbody><tr><td>
 		<table><tbody><tr><td>
@@ -406,7 +495,9 @@
 		
 		</td><td>
 		
-			<canvas id="can" width="300" height="600" style="border:1 solid #000000"></canvas>
+			<canvas id="can" width="300" height="600" style="border:1 solid #000000"
+				onmouseup="mouseUp(event)" onmousemove="mouseMove(event)" onmouseout="mouseOut()">
+			</canvas>
 		
 		</td><td>
 		
@@ -422,6 +513,142 @@
 			</tbody></table>
 		
 		</td></tr></tbody></table>
+		<td height="100%">
+		<table height="100%" style="background-color: #020;">
+			<tbody>
+				<tr style="border: 10;"><td height="50%" style="padding: 10px; vertical-align: top; color:#840; background-color:#fb4;">	
+					<table>
+						<tr><td colspan=2>
+							Player 1
+						</td></tr>
+						<tr><td>
+							Controlled by:
+						</td><td>
+							<select id="p1ctrlSelect" onchange="playerCtrlChange()">
+							  <option value="0">Keyboard letters</option>
+							  <option value="1">Keyboard numpad</option>
+							  <option value="2">Mouse</option>
+							  <option value="3">Computer</option>
+							</select>
+						</td></tr>
+						<tr><td colspan=2>
+							<div id="instr_1_0" style="padding: 10px; display: none" >
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
+										A - move east<br/>
+										W - move north<br/>
+										D - move west<br/>
+										X - move south<br/>
+										Q - move north-east<br/>
+										E - move north-west<br/>
+										C - move south-west<br/>
+										Z - move south-east<br/>
+										R - step back if possible
+									</td></tr>
+								</table>
+							</div>
+							<div id="instr_1_1" style="padding: 10px; display: none">
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
+										4 - move east<br/>
+										8 - move north<br/>
+										6 - move west<br/>
+										2 - move south<br/>
+										7 - move north-east<br/>
+										9 - move north-west<br/>
+										3 - move south-west<br/>
+										1 - move south-east<br/>
+										minus - step back if possible
+									</td></tr>
+								</table>
+							</div>
+							<div id="instr_1_2" style="padding: 10px; display: none">
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
+										left button - move<br/>
+										middle button - step back<br/>
+									</td></tr>
+								</table>
+							</div>
+							<div id="instr_1_3" style="padding: 10px; display: none">
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
+										Not yet implemented...
+									</td></tr>
+								</table>
+							</div>
+						</td></tr>
+					</table>
+				</td></tr>
+				
+				<tr><td height="50%" style="padding: 10px; vertical-align: top; color:#048; background-color:#4bf;">
+					<table>
+						<tr><td colspan=2>
+							Player 2
+						</td></tr>
+						<tr><td>
+							Controlled by:
+						</td><td>
+							<select id="p2ctrlSelect" onchange="playerCtrlChange()">
+							  <option value="0">Keyboard letters</option>
+							  <option value="1">Keyboard numpad</option>
+							  <option value="2">Mouse</option>
+							  <option value="3">Computer</option>
+							</select>
+						</td></tr>
+						<tr><td colspan=2>
+							<div id="instr_2_0" style="padding: 10px; display: none">
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
+										A - move east<br/>
+										W - move north<br/>
+										D - move west<br/>
+										X - move south<br/>
+										Q - move north-east<br/>
+										E - move north-west<br/>
+										C - move south-west<br/>
+										Z - move south-east<br/>
+										R - step back if possible
+									</td></tr>
+								</table>
+							</div>
+							<div id="instr_2_1" style="padding: 10px; display: none">
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
+										4 - move east<br/>
+										8 - move north<br/>
+										6 - move west<br/>
+										2 - move south<br/>
+										7 - move north-east<br/>
+										9 - move north-west<br/>
+										3 - move south-west<br/>
+										1 - move south-east<br/>
+										minus - step back if possible
+									</td></tr>
+								</table>
+							</div>
+							<div id="instr_2_2" style="padding: 10px; display: none">
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
+										left button - move<br/>
+										middle button - step back<br/>
+									</td></tr>
+								</table>
+							</div>
+							<div id="instr_2_3" style="padding: 10px; display: none">
+								<table style="background-color: #020;">
+									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
+										Not yet implemented...
+									</td></tr>
+								</table>
+							</div>
+						</td></tr>
+					</table>
+				</td></tr>
+				
+			</tbody>
+		</table>
+		</td>
 		</td></tr>
 		</tbody></table>
 	
@@ -431,6 +658,10 @@
 		window.setInterval("go();",50);
 		var can = document.getElementById('can');
 		nextGame();
+		
+		document.getElementById("p1ctrlSelect").value = 0;
+		document.getElementById("p2ctrlSelect").value = 2;
+		playerCtrlChange();
 		
 	</script>
 
