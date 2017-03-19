@@ -1,20 +1,26 @@
 <!DOCTYPE html>
 <!-- saved from url=(0033)http://grabthesquare.appspot.com/ -->
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+
+		<head>
+			<style>
+				
+			</style>
+		</head>
+
 		<script>
 			var controllers = ['keyboard', 'numpad', 'mouse', 'computer'];
-			var sizeX = 20;
-			var sizeY = 40;
-			var map = new Array(sizeX+2);
-			for (var x = -1; x < sizeX+2; x++) {
-				map[x] = new Array(sizeY+2);
-			}
+			var sizeX = 10;
+			var sizeY = 20;
+			var map = null; // init map is in nextGame()
 			var actPlayer = null;
 			var startPlayer = null;
 			var step = 0, stepLoopSize = 120;
 			// Move direction of active player
 			var playerMoveDir = 0; // 0 - nothing, 1-5: _ \ | / _
 									//             6-8    / | \
+			
+			var comp = null;
 			
 			function Player(){
 				this.score = 0;
@@ -35,6 +41,22 @@
 				}
 			}
 			
+			function Node(){
+				this.edges = [0, 0, 0, 0]; // _ \ | /  :edges: west, north-west, north, north-east
+				this.node = false; // has any touching eadges
+				this.markedBy = null;
+			}
+			
+			function Comp(){
+				this.tmpPath = [];
+				this.processedPaths = 0;
+				this.bestLength = 0;
+				this.bestDistance = -1;
+				this.bestPaths = [];
+				this.calcFinished = false;
+				this.chousenPath = null;
+			}
+			
 			var p1 = new Player();
 			p1.strokeStyle = "rgba(255,127,0,1.0)";
 			p1.fillStyle = p1.strokeStyle;
@@ -44,13 +66,17 @@
 			var playerTab = [null, p1, p2];
 			var mousePos = null;
 				
-			function Node(){
-				this.edges = [0, 0, 0, 0]; // _ \ | /  :edges: west, north-west, north, north-east
-				this.node = false; // has any touching eadges
-				this.markedBy = null;
-			}
+			
 
 			function nextGame(){ // starts a new round
+			
+				map = new Array(sizeX+2);
+				for (var x = -1; x < sizeX+2; x++) {
+					map[x] = new Array(sizeY+2);
+				}
+				
+				comp = new Comp();
+			
 				document.getElementById('p1s').innerHTML = p1.score;
 				document.getElementById('p2s').innerHTML = p2.score;
 				p1.path = [];
@@ -100,18 +126,9 @@
 					map[0][y].node = true;
 					map[sizeX][y].node = true;
 				}
-				
-				
-				//for (var x = 5; x < 9; x++) { //TODO: remove
-				//	for (var y = 10; y < 24; y++) {
-				//		for (var e = 0; e < 4; e++) {
-				//			map[x][y].edges[e] = (x+y/2)%4>1?2:0;
-				//		}
-				//	}
-				//}
+
 			}
 
-			
 			
 			function xToGreed(x){
 				return x*(can.width-2)/sizeX+1;
@@ -142,50 +159,119 @@
 				}
 				return p;
 			}
-				
+			
+			function calcPathEndPos(p, path){
+				for(var i=0;i<path.length; i++){ 
+					var pathMove = path[i];
+					if(pathMove == 1) { p.x--;        }
+					if(pathMove == 2) { p.x--; p.y--; }
+					if(pathMove == 3) {        p.y--; }
+					if(pathMove == 4) { p.x++; p.y--; }
+					if(pathMove == 5) { p.x++;        } 
+					if(pathMove == 6) { p.x++; p.y++; }
+					if(pathMove == 7) {        p.y++; }
+					if(pathMove == 8) { p.x--; p.y++; }
+				}
+				return p;
+			}
+						
+			function isMoveLegel(p, move){
+				if(move == 1) { return map[p.x  ][p.y  ].edges[0]==0; }
+				if(move == 2) { return map[p.x  ][p.y  ].edges[1]==0; }
+				if(move == 3) { return map[p.x  ][p.y  ].edges[2]==0; }
+				if(move == 4) { return map[p.x  ][p.y  ].edges[3]==0; }
+				if(move == 5) { return map[p.x+1][p.y  ].edges[0]==0; }
+				if(move == 6) { return map[p.x+1][p.y+1].edges[1]==0; }
+				if(move == 7) { return map[p.x  ][p.y+1].edges[2]==0; }
+				if(move == 8) { return map[p.x-1][p.y+1].edges[3]==0; }
+				return false;
+			}
+			
 			function calcMoveProperties(pos0, path, move){ // returns {isPossibleMove, endPos}
 				if(move>0 && move<9){
-					var legal = false;
 					var p = new Pos(pos0);
 					markPath(p, path, -1); // marking path on map
 					
-					if(move == 1) { legal = map[p.x  ][p.y  ].edges[0]==0; }
-					if(move == 2) { legal = map[p.x  ][p.y  ].edges[1]==0; }
-					if(move == 3) { legal = map[p.x  ][p.y  ].edges[2]==0; }
-					if(move == 4) { legal = map[p.x  ][p.y  ].edges[3]==0; }
-					if(move == 5) { legal = map[p.x+1][p.y  ].edges[0]==0; }
-					if(move == 6) { legal = map[p.x+1][p.y+1].edges[1]==0; }
-					if(move == 7) { legal = map[p.x  ][p.y+1].edges[2]==0; }
-					if(move == 8) { legal = map[p.x-1][p.y+1].edges[3]==0; }
+					var legal = isMoveLegel(p, move);
 					
 					if(legal) path.push(move);
 					var endPos = markPath(new Pos(pos0), path, 0); // cleaning path marks from map and endPos calc
 					if(legal) path.pop();
 
-					return {isPossibleMove: legal, endPos: endPos}; // true if map is free of markings
+					return {isPossibleMove: legal, endPos: endPos};
 				}
 				return {isPossibleMove: false};
 			}
+
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			function calcDistanceToGate(pos, player){ // this is the solution main cost function
+				pos = new Pos(pos); // copy values to new object
+				if(pos.x>sizeX/2) { // map is simetrical
+					pos.x = sizeX - pos.x 
+				} 
+				if(player == p1){ // player 1 goal is on opposite map side
+					pos.y = sizeY - pos.y;
+				}
+				pos.x = sizeX/2 - pos.x; //reverse x, so the gate is on 0,0
+				if(pos.x>pos.y){ // https://en.wikipedia.org/wiki/Taxicab_geometry
+					return pos.x; 
+				} else {
+					return pos.y;
+				}
+			};
+			
+			function calcOppositeMove(move){
+				if(move==0){
+					return 0;
+				}
+				if(move<5){
+					return move + 4;
+				} else {
+					return move - 4;
+				}
+			}
+			
+			
+			
+			
+			
+			
 			
 			function go(evt){
+				var startTime = performance.now();
 			
 				//check score
-				if(pos.x>=sizeX/2-1 && pos.y>=0 && pos.x<=sizeX/2+1 && pos.y<=1){
-					p2.score++;
-					nextGame();
-					return;
-				}
-				if(pos.x>=sizeX/2-1 && pos.y>=sizeY-1 && pos.x<=sizeX/2+1 && pos.y<=sizeY){
-					p1.score++;
-					nextGame();
-					return;
+				if(pos.x>=sizeX/2-1 && pos.x<=sizeX/2+1){
+					if(pos.y>=0 && pos.y<=1){
+						p2.score++;
+						nextGame();
+						return;
+					}
+					if(pos.y>=sizeY-1 && pos.y<=sizeY){
+						p1.score++;
+						nextGame();
+						return;
+					}
 				}
 				
 				var can = document.getElementById("can");
 				var ctx = can.getContext("2d");
 				var rect = can.getBoundingClientRect();
 				can.width = can.width;
-				step = (step+1)%stepLoopSize;//((new Date()).getTime()/50)%stepLoopSize;
+				//step = (step+1)%stepLoopSize;//((new Date()).getTime()/50)%stepLoopSize;
+				step = Math.floor(startTime/50)%stepLoopSize;
 				
 				//background
 				var grd=ctx.createLinearGradient(0,0,can.width,can.height);
@@ -279,6 +365,29 @@
 						}
 					}
 				}
+				
+				// drawing debug lines
+				ctx.lineWidth = 2;
+				for(var x=0; x<=sizeX; x++){ 
+					for(var y=1; y<=sizeY; y++){
+						var edges = map[x][y].edges;
+						if(edges[1] == -1){
+							drawMapLine(ctx, x-1, y-1, x, y, {strokeStyle: "rgba(127,127,127,1.0)"});
+						}
+						if(edges[3] == -1){
+							drawMapLine(ctx, x+1, y-1, x, y, {strokeStyle: "rgba(127,127,127,1.0)"});
+						}
+						if(edges[2] == -1){
+							drawMapLine(ctx, x, y-1, x, y, {strokeStyle: "rgba(127,127,127,1.0)"});
+						}
+						if(edges[0] == -1){
+							drawMapLine(ctx, x-1, y, x, y, {strokeStyle: "rgba(127,127,127,1.0)"});
+						}
+					}
+				}
+				
+				
+				
 				for(var x=0; x<=sizeX; x++){
 					for(var y=1; y<=sizeY; y++){
 						if(map[x][y].node && map[x][y].markedBy){
@@ -290,14 +399,154 @@
 					}
 				}
 				
-				//human player move
-				if(actPlayer.controlledBy == controllers[0] 
-						|| actPlayer.controlledBy == controllers[1] 
-						|| actPlayer.controlledBy == controllers[2]){
+				//var a = performance.now();
+				//		console.log(a);
+				
+				//computer player move calculations
+				if(actPlayer.controlledBy == controllers[3]){
+					
+					if(!comp.calcFinished){ // path is not finished
+					
+						// go to the last state
+						var pos0 = new Pos(actPlayer.pathStart);
+						var actPos = new Pos(pos0); 
+						actPos = markPath(new Pos(pos0), comp.tmpPath, -1);
+						
+						
+						var timesUp = false; // calculation time cannot infare animations
+						var tmpPaths = comp.processedPaths; // time is checked from-time-to-time
+						while(!timesUp && !comp.calcFinished){
+							
+							var move = 0;
+							if(comp.tmpPath.length>0){
+								move = comp.tmpPath.pop();
+								actPos = markPath(actPos, [calcOppositeMove(move)], 0); // unmark map
+							}
+
+							var foundMove = false;
+							while(!foundMove && move<8){ // looking for deeper path
+								move++;
+								
+								var moveLegal = isMoveLegel(actPos, move);
+								
+								if(moveLegal){
+									actPos = markPath(actPos, [move], -1); // mark map
+									comp.tmpPath.push(move);
+									
+									if(map[actPos.x][actPos.y].node){
+										comp.tmpPath.push(0); // go deeper
+										foundMove = true;
+									} else { // this move ends current path
+										var dist = calcDistanceToGate(actPos, actPlayer); // how long to opponent's gate
+										
+										if(comp.bestDistance == -1){ // first time evaluation
+											comp.bestDistance = dist;
+											comp.bestLength = comp.tmpPath.length;
+										}
+										if(dist == comp.bestDistance  &&  comp.tmpPath.length == comp.bestLength) {
+											var bestPath = comp.tmpPath.slice(); // array copy
+											comp.bestPaths.push(bestPath);
+										}
+										if(dist < comp.bestDistance  
+												||  (dist==comp.bestDistance && comp.tmpPath.length>comp.bestLength) ){
+											var bestPath = comp.tmpPath.slice(); // array copy
+											comp.bestPaths = [bestPath];
+											comp.bestDistance = dist;
+											comp.bestLength = comp.tmpPath.length;
+										}
+										
+										foundMove = true;
+									}
+								}
+							}
+							
+							
+							if(comp.tmpPath.length==0) {
+								comp.calcFinished = true;
+							}
+							
+							comp.processedPaths++;
+							if(comp.processedPaths%1000 == 0){
+								timesUp = (performance.now()-startTime)>45; // aniamtion step has 50ms
+							}
+						}
+
+						{ // calc progress bar
+							var calcPerc = 0;
+							if(comp.tmpPath.length>0) {
+								calcPerc = (comp.tmpPath[0]-1)*100/8;
+								if(comp.tmpPath.length>1) {
+									calcPerc += (comp.tmpPath[1]-1)*100/64;
+									if(comp.tmpPath.length>2) {
+										calcPerc += (comp.tmpPath[2]-1)*100/512;
+									} else {
+										calcPerc += 100/64;
+									}
+								} else {
+									calcPerc += 100/8;
+								}
+							} else {
+								calcPerc = 100;
+							}
+							
+							if(actPlayer==p1){ // presentation of progress bar
+								document.getElementById("p1compMsg").innerHTML = "Computing solution...";
+								document.getElementById("p1compProgress").style.width = calcPerc+"%";
+							}
+							if(actPlayer==p2){ // presentation of progress bar
+								document.getElementById("p2compMsg").innerHTML = "Computing solution...";
+								document.getElementById("p2compProgress").style.width = calcPerc+"%";
+							}
+						}// end - calc progress bar
+					
+						// map cleanup after calculations
+						if(comp.tmpPath.length>0){
+							
+							markPath(new Pos(pos0), comp.tmpPath, 0);
+							
+						}
+					
+					} else { // path is finished
+						if(!comp.chousenPath){
+							// all solutions are checked
+							var solutionNum = Math.floor(comp.bestPaths.length*Math.random());
+							comp.chousenPath = comp.bestPaths[solutionNum];
+							
+							comp.tmpPath = [];
+							comp.processedPaths = 0;
+							comp.bestLength = 0;
+							comp.bestDistance = -1;
+							comp.bestPaths = [];
+						}
+					}
+					
+					// computer player move animation
+					if(comp.chousenPath && comp.chousenPath.length>0 && playerMoveDir==0 && step%10==0){
+						playerMoveDir = comp.chousenPath.shift();
+						if(comp.chousenPath.length==0) {
+							comp.chousenPath = null; // computer player move animation finished
+							
+							document.getElementById("p1compMsg").innerHTML = "Computer player is idle";
+							document.getElementById("p2compMsg").innerHTML = "Computer player is idle";
+							document.getElementById("p1compProgress").style.width = "0%";
+							document.getElementById("p2compProgress").style.width = "0%";
+							comp.calcFinished = false;
+						}
+					}
+				} else {
+					comp = new Comp();
+				}
+				
+				
+				
+				//var d = calcDistanceToGate(pos, actPlayer);
+				//console.log(d);
+				
+				{ //player move
 					pos = new Pos(actPlayer.pathStart);
 					var moveProps = null;
 
-					if(playerMoveDir!=0){ // human player tries to move
+					if(playerMoveDir!=0){ // player tries to move
 						
 						moveProps = calcMoveProperties(new Pos(pos), actPlayer.path, playerMoveDir);
 						if(moveProps.isPossibleMove){
@@ -312,18 +561,12 @@
 					}
 
 					for(var i=0;i<actPlayer.path.length; i++){
-						var pos0 = new Pos(pos);
 						var move = actPlayer.path[i];
-						if(move == 1) { pos.x--; }
-						if(move == 2) { pos.x--; pos.y--;}
-						if(move == 3) {          pos.y--;}
-						if(move == 4) { pos.x++; pos.y--;}
-						if(move == 5) { pos.x++; } 
-						if(move == 6) { pos.x++; pos.y++;}
-						if(move == 7) {          pos.y++;}
-						if(move == 8) { pos.x--; pos.y++;}
+						var pos0 = new Pos(pos);
+						pos = calcPathEndPos(pos, [move]);
 						
-						if( i%12!=step%12 && (i+1)%12!=step%12 ){ // move trace animation
+						if(actPlayer.controlledBy == controllers[3]
+								|| i%12!=step%12 && (i+1)%12!=step%12 ){ // move trace animation
 							drawMapLine(ctx, pos0.x, pos0.y, pos.x, pos.y, actPlayer);
 						}
 					}
@@ -446,6 +689,11 @@
 				document.getElementById("p1ctrlSelect").blur();
 				document.getElementById("p2ctrlSelect").blur();
 				
+				document.getElementById("p1compMsg").innerHTML = "Computer player is idle";
+				document.getElementById("p1compProgress").style.width = "0%";
+				document.getElementById("p2compMsg").innerHTML = "Computer player is idle";
+				document.getElementById("p2compProgress").style.width = "0%";
+				
 				// showing and hiding of instructions
 				document.getElementById("instr_1_0").style.display = "none";
 				document.getElementById("instr_1_1").style.display = "none";
@@ -464,191 +712,195 @@
 	</head>
 
 
-	<body id="body" onkeyup="kup(event)" style="background-color: #efe;">
+	<body id="body" onkeyup="kup(event)" style="background-color: #efe; height: 100%; ">
 		
-		<table><tbody><tr><td>
-		<table><tbody><tr><td>
-		
-			<table width="20" height="600" border="5">
-				<tbody><tr style="color:#484; background-color:#8f8">
-					<td align="center"> 
-						<font size="5"><b><div id="title">
-							<table>
-								<tbody><tr><td align="center"> </td></tr>
-								<tr height="35"><td align="center">P</td></tr>
-								<tr height="35"><td align="center">a</td></tr>
-								<tr height="35"><td align="center">p</td></tr>
-								<tr height="35"><td align="center">e</td></tr>
-								<tr height="35"><td align="center">r</td></tr>
-								<tr height="35"><td align="center"> </td></tr>
-								<tr height="35"><td align="center">S</td></tr>
-								<tr height="35"><td align="center">o</td></tr>
-								<tr height="35"><td align="center">c</td></tr>
-								<tr height="35"><td align="center">c</td></tr>
-								<tr height="35"><td align="center">e</td></tr>
-								<tr height="35"><td align="center">r</td></tr>
-							</tbody></table>
-						</div>
-					</b></font></td>
-				</tr>
-			</tbody></table>
-		
-		</td><td>
-		
-			<canvas id="can" width="300" height="600" style="border:1 solid #000000"
-				onmouseup="mouseUp(event)" onmousemove="mouseMove(event)" onmouseout="mouseOut()">
-			</canvas>
-		
-		</td><td>
-		
-			<table height="600" border="5">
-				<tbody><tr>
-					<td align="center" height="50%" style="color:#840; background-color:#f80"> 
-						<font size="20"><b><div id="p1s">0</div>
-					</b></font></td></tr><tr>
-					<td align="center" height="50%" style="color:#048; background-color:#08f"> 
-						<font size="20"><b><div id="p2s">0</div>
-					</b></font></td>
-				</tr>
-			</tbody></table>
-		
+		<table style="height: 100%"><tbody style="height: 100%"><tr><td style="height: 100%">
+			<table><tbody><tr><td>
+			
+				<table width="20" height="600" border="5">
+					<tbody><tr style="color:#484; background-color:#8f8">
+						<td align="center"> 
+							<font size="5"><b><div id="title">
+								<table>
+									<tbody><tr><td align="center"> </td></tr>
+									<tr height="35"><td align="center">P</td></tr>
+									<tr height="35"><td align="center">a</td></tr>
+									<tr height="35"><td align="center">p</td></tr>
+									<tr height="35"><td align="center">e</td></tr>
+									<tr height="35"><td align="center">r</td></tr>
+									<tr height="35"><td align="center"> </td></tr>
+									<tr height="35"><td align="center">S</td></tr>
+									<tr height="35"><td align="center">o</td></tr>
+									<tr height="35"><td align="center">c</td></tr>
+									<tr height="35"><td align="center">c</td></tr>
+									<tr height="35"><td align="center">e</td></tr>
+									<tr height="35"><td align="center">r</td></tr>
+								</tbody></table>
+							</div>
+						</b></font></td>
+					</tr>
+				</tbody></table>
+			
+			</td><td>
+			
+				<canvas id="can" width="300" height="600" style="border:1 solid #000000"
+					onmouseup="mouseUp(event)" onmousemove="mouseMove(event)" onmouseout="mouseOut()">
+				</canvas>
+			
+			</td><td>
+			
+				<table height="600" border="5">
+					<tbody><tr>
+						<td align="center" height="50%" style="color:#840; background-color:#f80"> 
+							<font size="20"><b><div id="p1s">0</div>
+						</b></font></td></tr><tr>
+						<td align="center" height="50%" style="color:#048; background-color:#08f"> 
+							<font size="20"><b><div id="p2s">0</div>
+						</b></font></td>
+					</tr>
+				</tbody></table>
+			
 		</td></tr></tbody></table>
-		<td height="100%">
-		<table height="100%" style="background-color: #020;">
-			<tbody>
-				<tr style="border: 10;"><td height="50%" style="padding: 10px; vertical-align: top; color:#840; background-color:#fb4;">	
-					<table>
-						<tr><td colspan=2>
-							Player 1
-						</td></tr>
-						<tr><td>
-							Controlled by:
-						</td><td>
-							<select id="p1ctrlSelect" onchange="playerCtrlChange()">
-							  <option value="0">Keyboard letters</option>
-							  <option value="1">Keyboard numpad</option>
-							  <option value="2">Mouse</option>
-							  <option value="3">Computer</option>
-							</select>
-						</td></tr>
-						<tr><td colspan=2>
-							<div id="instr_1_0" style="padding: 10px; display: none" >
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
-										A - move east<br/>
-										W - move north<br/>
-										D - move west<br/>
-										X - move south<br/>
-										Q - move north-east<br/>
-										E - move north-west<br/>
-										C - move south-west<br/>
-										Z - move south-east<br/>
-										R - step back if possible
-									</td></tr>
-								</table>
-							</div>
-							<div id="instr_1_1" style="padding: 10px; display: none">
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
-										4 - move east<br/>
-										8 - move north<br/>
-										6 - move west<br/>
-										2 - move south<br/>
-										7 - move north-east<br/>
-										9 - move north-west<br/>
-										3 - move south-west<br/>
-										1 - move south-east<br/>
-										minus - step back if possible
-									</td></tr>
-								</table>
-							</div>
-							<div id="instr_1_2" style="padding: 10px; display: none">
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
-										left button - move<br/>
-										middle button - step back<br/>
-									</td></tr>
-								</table>
-							</div>
-							<div id="instr_1_3" style="padding: 10px; display: none">
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
-										Not yet implemented...
-									</td></tr>
-								</table>
-							</div>
-						</td></tr>
-					</table>
-				</td></tr>
-				
-				<tr><td height="50%" style="padding: 10px; vertical-align: top; color:#048; background-color:#4bf;">
-					<table>
-						<tr><td colspan=2>
-							Player 2
-						</td></tr>
-						<tr><td>
-							Controlled by:
-						</td><td>
-							<select id="p2ctrlSelect" onchange="playerCtrlChange()">
-							  <option value="0">Keyboard letters</option>
-							  <option value="1">Keyboard numpad</option>
-							  <option value="2">Mouse</option>
-							  <option value="3">Computer</option>
-							</select>
-						</td></tr>
-						<tr><td colspan=2>
-							<div id="instr_2_0" style="padding: 10px; display: none">
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
-										A - move east<br/>
-										W - move north<br/>
-										D - move west<br/>
-										X - move south<br/>
-										Q - move north-east<br/>
-										E - move north-west<br/>
-										C - move south-west<br/>
-										Z - move south-east<br/>
-										R - step back if possible
-									</td></tr>
-								</table>
-							</div>
-							<div id="instr_2_1" style="padding: 10px; display: none">
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
-										4 - move east<br/>
-										8 - move north<br/>
-										6 - move west<br/>
-										2 - move south<br/>
-										7 - move north-east<br/>
-										9 - move north-west<br/>
-										3 - move south-west<br/>
-										1 - move south-east<br/>
-										minus - step back if possible
-									</td></tr>
-								</table>
-							</div>
-							<div id="instr_2_2" style="padding: 10px; display: none">
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
-										left button - move<br/>
-										middle button - step back<br/>
-									</td></tr>
-								</table>
-							</div>
-							<div id="instr_2_3" style="padding: 10px; display: none">
-								<table style="background-color: #020;">
-									<tr><td style="padding: 10px; color:#048; background-color:#3af;">
-										Not yet implemented...
-									</td></tr>
-								</table>
-							</div>
-						</td></tr>
-					</table>
-				</td></tr>
-				
-			</tbody>
-		</table>
-		</td>
+		</td><td style="height: 100%">
+			<table  style="background-color: #020; height: 100%; font-family:arial;">
+				<tbody>
+					<tr style="border: 10;"><td height="50%" style="padding: 10px; vertical-align: top; color:#840; background-color:#fb4;">	
+						<table>
+							<tr><td colspan=2 style="text-align: center; font-weight: bold; padding: 5px 5px 15px 5px;">
+								Player 1
+							</td></tr>
+							<tr><td>
+								Controlled by:
+							</td><td>
+								<select id="p1ctrlSelect" onchange="playerCtrlChange()">
+								  <option value="0">Keyboard letters</option>
+								  <option value="1">Keyboard numpad</option>
+								  <option value="2">Mouse</option>
+								  <option value="3">Computer</option>
+								</select>
+							</td></tr>
+							<tr><td colspan=2>
+								<div id="instr_1_0" style="padding: 10px; display: none" >
+									<table style="background-color: #020;">
+										<tr><td style="padding: 10px; color:#840; background-color:#fa3; white-space: nowrap;">
+											A - move east<br/>
+											W - move north<br/>
+											D - move west<br/>
+											X - move south<br/>
+											Q - move north-east<br/>
+											E - move north-west<br/>
+											C - move south-west<br/>
+											Z - move south-east<br/>
+											R - step back if possible
+										</td></tr>
+									</table>
+								</div>
+								<div id="instr_1_1" style="padding: 10px; display: none">
+									<table style="background-color: #020;">
+										<tr><td style="padding: 10px; color:#840; background-color:#fa3; white-space: nowrap;">
+											4 - move east<br/>
+											8 - move north<br/>
+											6 - move west<br/>
+											2 - move south<br/>
+											7 - move north-east<br/>
+											9 - move north-west<br/>
+											3 - move south-west<br/>
+											1 - move south-east<br/>
+											minus - step back if possible
+										</td></tr>
+									</table>
+								</div>
+								<div id="instr_1_2" style="padding: 10px; display: none">
+									<table style="background-color: #020;">
+										<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
+											left button - move<br/>
+											middle button - step back<br/>
+										</td></tr>
+									</table>
+								</div>
+								<div id="instr_1_3" style="padding-top: 10px; display: none; width: 100%">
+									<table style="background-color: #020; width: 100%">
+										<tr><td id="p1compMsg" style="padding: 10px; color:#840; background-color:#fa3;">
+										</td></tr>
+										<tr><td style="color:#840; background-color:#fa3;">
+											<div id="p1compProgress" style="background-color:#841; height:24px; width:100%"></div>
+										</td></tr>
+									</table>
+								</div>
+							</td></tr>
+						</table>
+					</td></tr>
+					
+					<tr><td height="50%" style="padding: 10px; vertical-align: top; color:#048; background-color:#4bf;">
+						<table>
+							<tr><td colspan=2 style="text-align: center; font-weight: bold; padding: 5px 5px 15px 5px;">
+								Player 2
+							</td></tr>
+							<tr><td>
+								Controlled by:
+							</td><td>
+								<select id="p2ctrlSelect" onchange="playerCtrlChange()">
+								  <option value="0">Keyboard letters</option>
+								  <option value="1">Keyboard numpad</option>
+								  <option value="2">Mouse</option>
+								  <option value="3">Computer</option>
+								</select>
+							</td></tr>
+							<tr><td colspan=2>
+								<div id="instr_2_0" style="padding: 10px; display: none">
+									<table style="background-color: #020;">
+										<tr><td style="padding: 10px; color:#048; background-color:#3af; white-space: nowrap;">
+											A - move east<br/>
+											W - move north<br/>
+											D - move west<br/>
+											X - move south<br/>
+											Q - move north-east<br/>
+											E - move north-west<br/>
+											C - move south-west<br/>
+											Z - move south-east<br/>
+											R - step back if possible
+										</td></tr>
+									</table>
+								</div>
+								<div id="instr_2_1" style="padding: 10px; display: none">
+									<table style="background-color: #020;">
+										<tr><td style="padding: 10px; color:#048; background-color:#3af; white-space: nowrap;">
+											4 - move east<br/>
+											8 - move north<br/>
+											6 - move west<br/>
+											2 - move south<br/>
+											7 - move north-east<br/>
+											9 - move north-west<br/>
+											3 - move south-west<br/>
+											1 - move south-east<br/>
+											minus - step back if possible
+										</td></tr>
+									</table>
+								</div>
+								<div id="instr_2_2" style="padding: 10px; display: none">
+									<table style="background-color: #020;">
+										<tr><td style="padding: 10px; color:#048; background-color:#3af;">
+											left button - move<br/>
+											middle button - step back<br/>
+										</td></tr>
+									</table>
+								</div>
+								<div id="instr_2_3" style="padding-top: 10px; display: none; width: 100%">
+									<table style="background-color: #020; width: 100%">
+										<tr><td id="p2compMsg" style="padding: 10px; color:#048; background-color:#3af;">
+										</td></tr>
+										<tr><td style="color:#048; background-color:#3af;">
+											<div id="p2compProgress" style="background-color:#148; height:24px; width:0%"></div>
+										</td></tr>
+									</table>
+								</div>
+							</td></tr>
+						</table>
+					</td></tr>
+					
+				</tbody>
+			</table>
+			</td>
 		</td></tr>
 		</tbody></table>
 	
@@ -657,11 +909,49 @@
 		
 		window.setInterval("go();",50);
 		var can = document.getElementById('can');
-		nextGame();
 		
 		document.getElementById("p1ctrlSelect").value = 0;
 		document.getElementById("p2ctrlSelect").value = 2;
 		playerCtrlChange();
+		
+		function resolveHashParams(hashParams){
+			var hasSizeParam = false;
+			for(var i=0; i<hashParams.length; i++){
+				var param = hashParams[i];
+				if(param.startsWith("#size=")){ // 
+					var paramVal = param.split("=")[1];
+					if(paramVal.match(/[0-9]+,[0-9]+/g)){
+						var xyTab = paramVal.split("\,");
+						if(xyTab && xyTab[0] && xyTab[0]%2==0 && xyTab[1] && xyTab[1]%2==0){
+							if(xyTab[0]>0 && xyTab[1]>2){
+								sizeX = Number(xyTab[0]);
+								sizeY = Number(xyTab[1]);
+								nextGame();
+								hasSizeParam = true;
+							} else {
+								alert("Minimal possible game area is size=2,4\nRecommended is size=10,20");
+							}
+						} else {
+							alert("the size has to consist of even numbers");
+						}
+					}
+				}
+			}
+			if(!hasSizeParam){
+				window.location.hash = "size="+sizeX+","+sizeY;
+			}
+		}
+		
+		if(window.location.hash == ""){
+			window.location.hash = "size="+sizeX+","+sizeY;
+		} else {
+			resolveHashParams(window.location.hash.split(";"))
+		}
+
+		window.addEventListener("hashchange", function () {
+			var hashParams = window.location.hash.split(";");
+			resolveHashParams(hashParams);
+		});
 		
 	</script>
 
