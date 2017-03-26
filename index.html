@@ -16,6 +16,7 @@
 			var actPlayer = null;
 			var startPlayer = null;
 			var step = 0, stepLoopSize = 120;
+			var compAnimTime = 10;
 			// Move direction of active player
 			var playerMoveDir = 0; // 0 - nothing, 1-5: _ \ | / _
 									//             6-8    / | \
@@ -26,7 +27,7 @@
 				this.score = 0;
 				this.strokeStyle = "rgba(0,127,255,1.0)";
 				this.fillStyle = this.strokeStyle;
-				this.controlledBy = controllers[0];
+				this.controlledBy = controllers[1];
 				this.path = [];
 				this.pathStart = null;
 				this.playerNumber = 1;
@@ -414,7 +415,6 @@
 						
 						
 						var timesUp = false; // calculation time cannot infare animations
-						var tmpPaths = comp.processedPaths; // time is checked from-time-to-time
 						while(!timesUp && !comp.calcFinished){
 							
 							var move = 0;
@@ -511,17 +511,12 @@
 							// all solutions are checked
 							var solutionNum = Math.floor(comp.bestPaths.length*Math.random());
 							comp.chousenPath = comp.bestPaths[solutionNum];
-							
-							comp.tmpPath = [];
-							comp.processedPaths = 0;
-							comp.bestLength = 0;
-							comp.bestDistance = -1;
-							comp.bestPaths = [];
 						}
 					}
 					
 					// computer player move animation
-					if(comp.chousenPath && comp.chousenPath.length>0 && playerMoveDir==0 && step%10==0){
+					if(comp.chousenPath && comp.chousenPath.length>0 && playerMoveDir==0 
+							&& step%compAnimTime==0){
 						playerMoveDir = comp.chousenPath.shift();
 						if(comp.chousenPath.length==0) {
 							comp.chousenPath = null; // computer player move animation finished
@@ -530,11 +525,9 @@
 							document.getElementById("p2compMsg").innerHTML = "Computer player is idle";
 							document.getElementById("p1compProgress").style.width = "0%";
 							document.getElementById("p2compProgress").style.width = "0%";
-							comp.calcFinished = false;
+							comp = new Comp();
 						}
 					}
-				} else {
-					comp = new Comp();
 				}
 				
 				
@@ -769,9 +762,7 @@
 							<tr><td colspan=2 style="text-align: center; font-weight: bold; padding: 5px 5px 15px 5px;">
 								Player 1
 							</td></tr>
-							<tr><td>
-								Controlled by:
-							</td><td>
+							<tr><td>Controlled by:</td><td>
 								<select id="p1ctrlSelect" onchange="playerCtrlChange()">
 								  <option value="0">Keyboard letters</option>
 								  <option value="1">Keyboard numpad</option>
@@ -783,38 +774,21 @@
 								<div id="instr_1_0" style="padding: 10px; display: none" >
 									<table style="background-color: #020;">
 										<tr><td style="padding: 10px; color:#840; background-color:#fa3; white-space: nowrap;">
-											A - move east<br/>
-											W - move north<br/>
-											D - move west<br/>
-											X - move south<br/>
-											Q - move north-east<br/>
-											E - move north-west<br/>
-											C - move south-west<br/>
-											Z - move south-east<br/>
-											R - step back if possible
+											A - move east<br/>W - move north<br/>D - move west<br/>X - move south<br/>Q - move north-east<br/>E - move north-west<br/>C - move south-west<br/>Z - move south-east<br/>R - step back if possible
 										</td></tr>
 									</table>
 								</div>
 								<div id="instr_1_1" style="padding: 10px; display: none">
 									<table style="background-color: #020;">
 										<tr><td style="padding: 10px; color:#840; background-color:#fa3; white-space: nowrap;">
-											4 - move east<br/>
-											8 - move north<br/>
-											6 - move west<br/>
-											2 - move south<br/>
-											7 - move north-east<br/>
-											9 - move north-west<br/>
-											3 - move south-west<br/>
-											1 - move south-east<br/>
-											minus - step back if possible
+											4 - move east<br/>8 - move north<br/>6 - move west<br/>2 - move south<br/>7 - move north-east<br/>9 - move north-west<br/>3 - move south-west<br/>1 - move south-east<br/>minus - step back if possible
 										</td></tr>
 									</table>
 								</div>
 								<div id="instr_1_2" style="padding: 10px; display: none">
 									<table style="background-color: #020;">
 										<tr><td style="padding: 10px; color:#840; background-color:#fa3;">
-											left button - move<br/>
-											middle button - step back<br/>
+											left button - move<br/>middle button - step back<br/>
 										</td></tr>
 									</table>
 								</div>
@@ -836,9 +810,7 @@
 							<tr><td colspan=2 style="text-align: center; font-weight: bold; padding: 5px 5px 15px 5px;">
 								Player 2
 							</td></tr>
-							<tr><td>
-								Controlled by:
-							</td><td>
+							<tr><td>Controlled by:</td><td>
 								<select id="p2ctrlSelect" onchange="playerCtrlChange()">
 								  <option value="0">Keyboard letters</option>
 								  <option value="1">Keyboard numpad</option>
@@ -850,38 +822,21 @@
 								<div id="instr_2_0" style="padding: 10px; display: none">
 									<table style="background-color: #020;">
 										<tr><td style="padding: 10px; color:#048; background-color:#3af; white-space: nowrap;">
-											A - move east<br/>
-											W - move north<br/>
-											D - move west<br/>
-											X - move south<br/>
-											Q - move north-east<br/>
-											E - move north-west<br/>
-											C - move south-west<br/>
-											Z - move south-east<br/>
-											R - step back if possible
+											A - move east<br/>W - move north<br/>D - move west<br/>X - move south<br/>Q - move north-east<br/>E - move north-west<br/>C - move south-west<br/>Z - move south-east<br/>R - step back if possible
 										</td></tr>
 									</table>
 								</div>
 								<div id="instr_2_1" style="padding: 10px; display: none">
 									<table style="background-color: #020;">
 										<tr><td style="padding: 10px; color:#048; background-color:#3af; white-space: nowrap;">
-											4 - move east<br/>
-											8 - move north<br/>
-											6 - move west<br/>
-											2 - move south<br/>
-											7 - move north-east<br/>
-											9 - move north-west<br/>
-											3 - move south-west<br/>
-											1 - move south-east<br/>
-											minus - step back if possible
+											4 - move east<br/>8 - move north<br/>6 - move west<br/>2 - move south<br/>7 - move north-east<br/>9 - move north-west<br/>3 - move south-west<br/>1 - move south-east<br/>minus - step back if possible
 										</td></tr>
 									</table>
 								</div>
 								<div id="instr_2_2" style="padding: 10px; display: none">
 									<table style="background-color: #020;">
 										<tr><td style="padding: 10px; color:#048; background-color:#3af;">
-											left button - move<br/>
-											middle button - step back<br/>
+											left button - move<br/>middle button - step back<br/>
 										</td></tr>
 									</table>
 								</div>
@@ -910,23 +865,29 @@
 		window.setInterval("go();",50);
 		var can = document.getElementById('can');
 		
-		document.getElementById("p1ctrlSelect").value = 0;
-		document.getElementById("p2ctrlSelect").value = 2;
+		document.getElementById("p1ctrlSelect").value = 2;
+		document.getElementById("p2ctrlSelect").value = 3;
 		playerCtrlChange();
 		
+		//computing of anchor hash (URL params) for rhe global game paramiters
 		function resolveHashParams(hashParams){
 			var hasSizeParam = false;
 			for(var i=0; i<hashParams.length; i++){
 				var param = hashParams[i];
-				if(param.startsWith("#size=")){ // 
+				if(param.startsWith("size=")){ // 
 					var paramVal = param.split("=")[1];
+					
 					if(paramVal.match(/[0-9]+,[0-9]+/g)){
 						var xyTab = paramVal.split("\,");
 						if(xyTab && xyTab[0] && xyTab[0]%2==0 && xyTab[1] && xyTab[1]%2==0){
 							if(xyTab[0]>0 && xyTab[1]>2){
-								sizeX = Number(xyTab[0]);
-								sizeY = Number(xyTab[1]);
-								nextGame();
+								var newSizeX = Number(xyTab[0]);
+								var newSizeY = Number(xyTab[1]);
+								if(newSizeX!=sizeX || newSizeY!=sizeY){
+									sizeX = Number(xyTab[0]);
+									sizeY = Number(xyTab[1]);
+									nextGame();
+								}
 								hasSizeParam = true;
 							} else {
 								alert("Minimal possible game area is size=2,4\nRecommended is size=10,20");
@@ -936,22 +897,42 @@
 						}
 					}
 				}
+				if(param.startsWith("compAnimTime=")){
+					var paramVal = param.split("=")[1];
+					if(paramVal.match(/[0-9]+/g)){
+						paramVal = Number(paramVal);
+						if(paramVal<stepLoopSize && paramVal>0 && stepLoopSize%paramVal==0){
+							compAnimTime = paramVal;
+						} else {
+							alert("compAnimTime must be a dividor of "+stepLoopSize);
+						}
+					}
+				}
 			}
 			if(!hasSizeParam){
-				window.location.hash = "size="+sizeX+","+sizeY;
+				window.location.hash = "size="+sizeX+","+sizeY
+									+";compAnimTime="+compAnimTime;
 			}
 		}
 		
 		if(window.location.hash == ""){
-			window.location.hash = "size="+sizeX+","+sizeY;
+			window.location.hash = "size="+sizeX+","+sizeY+";compAnimTime="+compAnimTime;
+			nextGame();
 		} else {
-			resolveHashParams(window.location.hash.split(";"))
+			resolveHashParams(window.location.hash.substring(1).split(";"))
 		}
 
 		window.addEventListener("hashchange", function () {
-			var hashParams = window.location.hash.split(";");
+			var hashParams = window.location.hash.substring(1).split(";");
 			resolveHashParams(hashParams);
+			if(!map){
+				nextGame();
+			}
 		});
+		
+		if(!map){
+			nextGame();
+		}
 		
 	</script>
 
