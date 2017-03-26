@@ -2,12 +2,6 @@
 <!-- saved from url=(0033)http://grabthesquare.appspot.com/ -->
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
 
-		<head>
-			<style>
-				
-			</style>
-		</head>
-
 		<script>
 			var controllers = ['keyboard', 'numpad', 'mouse', 'computer'];
 			var sizeX = 10;
@@ -52,7 +46,8 @@
 				this.tmpPath = [];
 				this.processedPaths = 0;
 				this.bestLength = 0;
-				this.bestDistance = -1;
+				this.bestDistance = -1; // distance used in minimax
+				this.myBestDistance = -1; // distance used to bias better mine move, when opponent's move waights the same
 				this.bestPaths = [];
 				this.calcFinished = false;
 				this.chousenPath = null;
@@ -437,23 +432,77 @@
 										comp.tmpPath.push(0); // go deeper
 										foundMove = true;
 									} else { // this move ends current path
-										var dist = calcDistanceToGate(actPos, actPlayer); // how long to opponent's gate
+										var dist = calcDistanceToGate(actPos, actPlayer);
 										
-										if(comp.bestDistance == -1){ // first time evaluation
-											comp.bestDistance = dist;
-											comp.bestLength = comp.tmpPath.length;
+										if(dist>1){ // not yet winning move, need to calculate opponent move (minimax)
+											var revStartPos = new Pos(actPos); // 
+											map[revStartPos.x][revStartPos.y].node = true;
+											var revMove = 0; // potencial move of the opponent
+											var revPath = []; // potencial path of the opponent
+											dist = -1; // warst potencial distance to actPlayer gate of the opponent
+											while(revPath.length>0 || revMove<9){ // minimax opponent calculation
+												revMove++;
+												if(revMove>8 && revPath.length>0){
+													revMove = revPath.pop();
+													actPos = markPath(actPos, [calcOppositeMove(revMove)], 0); // unmark map
+													continue;
+												}
+												
+												moveLegal = isMoveLegel(actPos, revMove);
+												
+												if(moveLegal){
+													actPos = markPath(actPos, [revMove], -1); // mark map
+													if(map[actPos.x][actPos.y].node){
+														revPath.push(revMove);
+														revMove = 0; // go diper as opponent
+													} else {
+														var revDist = calcDistanceToGate(actPos, actPlayer); // how long opponent has to his gate
+														var revMyDist = calcDistanceToGate(actPos, actPlayer==p1 ? p2 : p1);
+														if(revMyDist<2){
+															revDist += 10000; // FIXME: hack
+														}
+														if(dist < revDist){
+															dist = revDist;
+															//console.log(comp.tmpPath, ">>", dist, ">>", revPath, revMove);
+														}
+														actPos = markPath(actPos, [calcOppositeMove(revMove)], 0); // unmark map
+													}
+												}
+
+											}
+											map[revStartPos.x][revStartPos.y].node = false;
+										} else {
+											//console.log("win:", comp.tmpPath, ">>", dist);
+											dist = -2; // winning move found
 										}
-										if(dist == comp.bestDistance  &&  comp.tmpPath.length == comp.bestLength) {
-											var bestPath = comp.tmpPath.slice(); // array copy
-											comp.bestPaths.push(bestPath);
+										var myDist = calcDistanceToGate(actPos, actPlayer);
+										var opponentDist = calcDistanceToGate(actPos, actPlayer==p1 ? p2 : p1);
+										if(opponentDist<2){
+											dist += 10000;
 										}
-										if(dist < comp.bestDistance  
+										
+										if(comp.bestDistance == -1 
+												|| dist < comp.bestDistance  
 												||  (dist==comp.bestDistance && comp.tmpPath.length>comp.bestLength) ){
 											var bestPath = comp.tmpPath.slice(); // array copy
 											comp.bestPaths = [bestPath];
 											comp.bestDistance = dist;
 											comp.bestLength = comp.tmpPath.length;
+											if(comp.myBestDistance == -1){
+												comp.myBestDistance = myDist;
+											}
+										} else
+										if(dist == comp.bestDistance  &&  comp.tmpPath.length == comp.bestLength) {
+											if(comp.myBestDistance == -1 || comp.myBestDistance > myDist){
+												comp.myBestDistance = myDist;
+												var bestPath = comp.tmpPath.slice(); // array copy
+												comp.bestPaths = [bestPath];
+											} else {
+												var bestPath = comp.tmpPath.slice(); // array copy
+												comp.bestPaths.push(bestPath);
+											}
 										}
+										
 										
 										foundMove = true;
 									}
@@ -466,7 +515,7 @@
 							}
 							
 							comp.processedPaths++;
-							if(comp.processedPaths%1000 == 0){
+							if(comp.processedPaths%100 == 0){
 								timesUp = (performance.now()-startTime)>45; // aniamtion step has 50ms
 							}
 						}
